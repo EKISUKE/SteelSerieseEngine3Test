@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 
 // TCP通信クライアント
 public class TCPClient
@@ -6,10 +7,17 @@ public class TCPClient
 
     public static void Start()
     {
+        string programDataPath = Environment.GetEnvironmentVariable("PROGRAMDATA");
+        // coreProp.jsonを読み込む
+        var coreProp = JsonUtility.Deserialize<CoreProp>(programDataPath + "/SteelSeries/SteelSeries Engine 3/coreProps.json");
+        // JSONからアドレス取得
+        string address = coreProp.Address;
+        // 正規表現でアドレスとポートに分解
+        Match match = Regex.Match(address, "^(?<IPAddress>.*):(?<Port>\\d+)$");
+        if (!match.Success) return;
         //サーバーのIPアドレス（または、ホスト名）とポート番号
-        string ipOrHost = "127.0.0.1";
-        //string ipOrHost = "localhost";
-        int port = 49738;
+        string ipOrHost = match.Groups["IPAddress"].ToString();
+        int port = int.Parse(match.Groups["Port"].ToString());
         Console.WriteLine("{0}:{1}へアクセスします。", ipOrHost, port);
         //TcpClientを作成し、サーバーと接続する
         System.Net.Sockets.TcpClient tcp =
@@ -30,8 +38,8 @@ public class TCPClient
         ns.WriteTimeout = 10000;
 
         // ゲームを登録
-        const string addGame = "{\"game\": \"TEST_GAME\", \"game_display_name\": \"My Testing game\", \"icon_color_id\": 5 }";
-        TCPClient client = new TCPClient();
+        TCPClient   client  = new TCPClient();
+        string      addGame = JsonUtility.GetFileString("./Resource/gameSetting.json");
         client.SendMessage(addGame, ns);    
 
         do {
