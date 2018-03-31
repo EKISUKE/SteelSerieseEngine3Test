@@ -6,7 +6,7 @@ namespace SteelSerieseEngine3Test
     {
         static void Main(string[] args)
         {
-            TCPClient.Start();
+            SSE3Client.Start();
         }
     }
 }

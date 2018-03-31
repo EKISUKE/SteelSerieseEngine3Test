@@ -4,6 +4,7 @@ using System.Runtime.Serialization.Json;
 
 /// <summary>
 /// JSON読み込みユーティリティ
+/// 参考URL : http://takachan.hatenablog.com/entry/2017/01/18/120000
 /// </summary>
 public static class JsonUtility
 {

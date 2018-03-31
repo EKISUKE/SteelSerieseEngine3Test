@@ -1,10 +1,12 @@
 using System;
+using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Timers;
 
-// TCP通信クライアント
-public class TCPClient
+public class SSE3Client
 {
-
     public static void Start()
     {
         string programDataPath = Environment.GetEnvironmentVariable("PROGRAMDATA");
@@ -14,54 +16,82 @@ public class TCPClient
         string address = coreProp.Address;
         // 正規表現でアドレスとポートに分解
         Match match = Regex.Match(address, "^(?<IPAddress>.*):(?<Port>\\d+)$");
-        if (!match.Success) return;
+        // 取得できなかった場合は処理終了
+        if (!match.Success) {
+            Console.WriteLine("coreProp.jsonの読み込みに失敗しました。");
+            return;
+        }
         //サーバーのIPアドレス（または、ホスト名）とポート番号
         string ipOrHost = match.Groups["IPAddress"].ToString();
-        int port = int.Parse(match.Groups["Port"].ToString());
-        Console.WriteLine("{0}:{1}へアクセスします。", ipOrHost, port);
-        //TcpClientを作成し、サーバーと接続する
-        System.Net.Sockets.TcpClient tcp =
-            new System.Net.Sockets.TcpClient(ipOrHost, port);
-        Console.WriteLine("サーバー({0}:{1})と接続しました({2}:{3})。",
-            ((System.Net.IPEndPoint)tcp.Client.RemoteEndPoint).Address,
-            ((System.Net.IPEndPoint)tcp.Client.RemoteEndPoint).Port,
-            ((System.Net.IPEndPoint)tcp.Client.LocalEndPoint).Address,
-            ((System.Net.IPEndPoint)tcp.Client.LocalEndPoint).Port);
+        string port     = match.Groups["Port"].ToString();
+        // sse3接続先を初期化
+        _sse3Address    = "http://" + ipOrHost + ":" + port;
 
-        //NetworkStreamを取得する
-        System.Net.Sockets.NetworkStream ns = tcp.GetStream();
-
-        //読み取り、書き込みのタイムアウトを10秒にする
-        //デフォルトはInfiniteで、タイムアウトしない
-        //(.NET Framework 2.0以上が必要)
-        ns.ReadTimeout = 10000;
-        ns.WriteTimeout = 10000;
-
+        // Httpクライアントでゲーム登録
         // ゲームを登録
-        TCPClient   client  = new TCPClient();
-        string      addGame = JsonUtility.GetFileString("./Resource/gameSetting.json");
-        client.SendMessage(addGame, ns);    
+        string addGame = JsonUtility.GetFileString("./Resource/gameSetting.json");
+        var response   = PostJsonData(addGame, "/game_metadata");
+        WaitResponse(response);
+        Console.WriteLine("ゲーム登録結果 : " + response.Result);
 
-        do {
+        // ゲームイベントを登録
+        string bindGameEvent = JsonUtility.GetFileString("./Resource/gameEvent.json");
+        response = PostJsonData(bindGameEvent, "/bind_game_event");
+        WaitResponse(response);
+        Console.WriteLine("ゲームイベント登録結果 : " + response.Result);
 
-        }while(true);
+        // タイマー作成
+        Timer timer = new System.Timers.Timer();
+        timer.Interval = 5.0f * 1000.0f;
+        timer.Elapsed += (sender, e) =>
+                        {
+                            string gameExec = JsonUtility.GetFileString("./Resource/gameEventExec.json");
+                            response = PostJsonData(gameExec, "/game_event");
+                            WaitResponse(response);
+                            Console.WriteLine("イベント実行 : " + response.Result);
+                        };
+        timer.Start();
+        while (true)
+        {
+            var key = Console.ReadKey();
+            if (key.Key == ConsoleKey.Escape)
+            {
+                break;
+            }
+        }
+        timer.Stop();
+        // ゲームイベント削除
+        string deleteGameEvent = JsonUtility.GetFileString("./Resource/deleteGameEvent.json");
+        response = PostJsonData(bindGameEvent, "/remove_game_event");
+        WaitResponse(response);
+        Console.WriteLine("ゲームイベント削除結果 : " + response.Result);
 
-        // //閉じる
-        // ns.Close();
-        // tcp.Close();
-        // Console.WriteLine("切断しました。");
+        // ゲームの削除
+        string deleteGame = JsonUtility.GetFileString("./Resource/deleteGame.json");
+        response = PostJsonData(bindGameEvent, "/remove_game");
+        WaitResponse(response);
+        Console.WriteLine("ゲームの削除 : " + response.Result);
 
-        // Console.ReadLine();
+
+        //閉じる
+        Console.WriteLine("処理終了");
     }
 
-    //サーバーにメッセージを送信する
-    public void SendMessage(string msg, System.Net.Sockets.NetworkStream ns)
+    public static async Task<string> PostJsonData(string jsonData, string extraAddress)
     {
-        //文字列をByte型配列に変換
-        System.Text.Encoding enc = System.Text.Encoding.UTF8;
-        byte[] sendBytes = enc.GetBytes(msg + '\n');
-        //データを送信する
-        ns.Write(sendBytes, 0, sendBytes.Length);
-        Console.WriteLine(msg);
+        Uri uri = new Uri(_sse3Address + extraAddress);
+        var jsonContent = new StringContent(jsonData, Encoding.UTF8, "application/json");
+        var response    = await _client.PostAsync(uri, jsonContent);
+        return await response.Content.ReadAsStringAsync();
     }
+
+    public static void WaitResponse(Task<string> response)
+    {
+        while (response.Status != TaskStatus.RanToCompletion)
+        {
+        };
+    }
+
+    private static string     _sse3Address = "";
+    private static HttpClient _client = new HttpClient(); // http通信用クライアント
 }

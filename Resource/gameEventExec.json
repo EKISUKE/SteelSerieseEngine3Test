@@ -1,0 +1,7 @@
+{
+  "game": "TEST_GAME",
+  "event": "COLOR_CHANGE",
+  "data": {
+    "value": 1
+  }
+}

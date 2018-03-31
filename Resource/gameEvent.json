@@ -1,0 +1,16 @@
+{
+  "game": "TEST_GAME",
+  "event": "COLOR_CHANGE",
+  "handlers": [
+    {
+      "device-type": "mouse",
+      "zone": "rgb-2-zone",
+      "color": {
+        "red": 0,
+        "green": 255,
+        "blue": 0
+      },
+      "mode": "color"
+    }
+  ]
+}  
